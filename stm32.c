@@ -837,7 +837,6 @@ static stm32_err_t stm32_pages_erase(const stm32_t *stm, uint32_t spage, uint32_
 
 	/* regular erase (0x43) */
 	if (stm->cmd->er == STM32_CMD_ER) {
-        fprintf(stdout, "Regular erase: ");
 		buf = malloc(1 + pages + 1);
 		if (!buf)
 			return STM32_ERR_UNKNOWN;
@@ -861,12 +860,10 @@ static stm32_err_t stm32_pages_erase(const stm32_t *stm, uint32_t spage, uint32_
 				stm32_warn_stretching("erase");
 			return STM32_ERR_UNKNOWN;
 		}
-		fprintf(stdout, " ... RegDone\n");
 		return STM32_ERR_OK;
 	}
 
 	/* extended erase */
-    fprintf(stdout, "CMD: 0x%X ;", stm->cmd->er);
 	buf = malloc(2 + 2 * pages + 1);
 	if (!buf)
 		return STM32_ERR_UNKNOWN;
@@ -878,9 +875,6 @@ static stm32_err_t stm32_pages_erase(const stm32_t *stm, uint32_t spage, uint32_
 	pg_byte = (pages - 1) & 0xFF;
 	buf[i++] = pg_byte;
 	cs ^= pg_byte;
-
-    fprintf(stdout, "Page #: 0x%X%X ", buf[i-2], buf[i-1]);
-    fprintf(stdout, "SPage: 0x%X ", spage);
     
 	for (pg_num = spage; pg_num < spage + pages; pg_num++) {
 		pg_byte = pg_num >> 8;
@@ -907,7 +901,6 @@ static stm32_err_t stm32_pages_erase(const stm32_t *stm, uint32_t spage, uint32_
 		return STM32_ERR_UNKNOWN;
 	}
 	
-	fprintf(stdout, " ... ExtDone\n");
 
 	return STM32_ERR_OK;
 }
@@ -948,16 +941,7 @@ stm32_err_t stm32_erase_memory(const stm32_t *stm, uint32_t spage, uint32_t page
 	 * one command. Split the call.
 	 */
 	while (pages) {
-        //n = (pages <= 1024) ? pages : 1024; // wrong - 65536 bytes remains 0xFF
-        //n = (pages <= 1023) ? pages : 1023; // wrong - 65536 bytes remains 0xFF
-        //n = (pages <= 512) ? pages : 512; // wrong - 128 bytes remains 0xFF
-        //n = (pages <= 511) ? pages : 511; // OK - 0 bytes
-        //n = (pages <= 256) ? pages : 256; // OK - 0 bytes
-        //n = (pages <= 255) ? pages : 255; // OK - 0 bytes
-        
-        // just to test non polwer-of-two related numbers
-        // n = (pages <= 600) ? pages : 600;  // wrong - 22656  bytes remains 0xFF
-        n = (pages <= 100) ? pages : 100; // OK - 0 bytes
+        n = (pages <= 511) ? pages : 511; // the best settings that works for stm32l082
 		s_err = stm32_pages_erase(stm, spage, n);
 		if (s_err != STM32_ERR_OK)
 			return s_err;
