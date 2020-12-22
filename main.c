@@ -43,7 +43,7 @@
 #include <windows.h>
 #endif
 
-#define VERSION "0.5"
+#define VERSION "0.5_KETCube"
 
 /* device globals */
 stm32_t		*stm		= NULL;

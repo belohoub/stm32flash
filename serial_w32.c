@@ -31,6 +31,8 @@
 #include "serial.h"
 #include "port.h"
 
+extern FILE *diag;
+
 struct serial {
 	HANDLE fd;
 	DCB oldtio;
@@ -318,13 +320,17 @@ static port_err_t serial_w32_gpio(struct port_interface *port,
 		return PORT_ERR_OK;
 
 	default:
+		//fprintf(diag, "   - UNKNOWN PORT ");
 		return PORT_ERR_UNKNOWN;
 	}
 
 	/* handle RTS/DTR */
-	if (EscapeCommFunction(h->fd, bit) == 0)
+	if (EscapeCommFunction(h->fd, bit) == 0) {
+		//fprintf(diag, "   - setting port ERROR ");
 		return PORT_ERR_UNKNOWN;
+	}
 
+	//fprintf(diag, "   - setting port OK ");
 	return PORT_ERR_OK;
 }
 
