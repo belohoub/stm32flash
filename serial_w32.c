@@ -95,6 +95,7 @@ static void serial_flush(const serial_t __unused *h)
 {
 	/* We shouldn't need to flush in non-overlapping (blocking) mode */
 	/* tcflush(h->fd, TCIFLUSH); */
+    PurgeComm(h->fd, PURGE_RXCLEAR);
 }
 
 static void serial_close(serial_t *h)
@@ -293,8 +294,9 @@ static port_err_t serial_w32_write(struct port_interface *port, void *buf,
 static port_err_t serial_w32_gpio(struct port_interface *port,
 				  serial_gpio_t n, int level)
 {
+	static int dtr=CLRDTR, rts=CLRRTS;
 	serial_t *h;
-	int bit;
+	//int bit;
 
 	h = (serial_t *)port->private;
 	if (h == NULL)
@@ -302,11 +304,11 @@ static port_err_t serial_w32_gpio(struct port_interface *port,
 
 	switch (n) {
 	case GPIO_RTS:
-		bit = level ? SETRTS : CLRRTS;
+		rts = level ? SETRTS : CLRRTS;
 		break;
 
 	case GPIO_DTR:
-		bit = level ? SETDTR : CLRDTR;
+		dtr = level ? SETDTR : CLRDTR;
 		break;
 
 	case GPIO_BRK:
@@ -325,7 +327,11 @@ static port_err_t serial_w32_gpio(struct port_interface *port,
 	}
 
 	/* handle RTS/DTR */
-	if (EscapeCommFunction(h->fd, bit) == 0) {
+	if (EscapeCommFunction(h->fd, dtr) == 0) {
+		//fprintf(diag, "   - setting port ERROR ");
+		return PORT_ERR_UNKNOWN;
+	}
+	if (EscapeCommFunction(h->fd, rts) == 0) {
 		//fprintf(diag, "   - setting port ERROR ");
 		return PORT_ERR_UNKNOWN;
 	}

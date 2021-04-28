@@ -365,15 +365,19 @@ static stm32_err_t stm32_send_init_seq(const stm32_t *stm)
 	struct port_interface *port = stm->port;
 	port_err_t p_err;
 	uint8_t byte, cmd = STM32_CMD_INIT;
-
+    
 	p_err = port->write(port, &cmd, 1);
 	if (p_err != PORT_ERR_OK) {
 		fprintf(stderr, "Failed to send init to device\n");
 		return STM32_ERR_UNKNOWN;
 	}
+	fprintf(stdout, "Init command sent.\n");
+    
 	p_err = port->read(port, &byte, 1);
-	if (p_err == PORT_ERR_OK && byte == STM32_ACK)
+	if (p_err == PORT_ERR_OK && byte == STM32_ACK) {
+        fprintf(stdout, "Init command OK.\n");
 		return STM32_ERR_OK;
+    }
 	if (p_err == PORT_ERR_OK && byte == STM32_NACK) {
 		/* We could get error later, but let's continue, for now. */
 		fprintf(stderr,
@@ -384,7 +388,7 @@ static stm32_err_t stm32_send_init_seq(const stm32_t *stm)
 		fprintf(stderr, "Failed to init device.\n");
 		return STM32_ERR_UNKNOWN;
 	}
-
+	
 	/*
 	 * Check if previous STM32_CMD_INIT was taken as first byte
 	 * of a command. Send a new byte, we should get back a NACK.

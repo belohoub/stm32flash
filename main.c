@@ -316,7 +316,7 @@ int main(int argc, char* argv[]) {
 	}
 
 	port->flush(port);
-
+    
 	stm = stm32_init(port, init_flag);
 	if (!stm)
 		goto close;
