@@ -70,7 +70,9 @@ enum actions {
 	ACT_READ_PROTECT,
 	ACT_READ_UNPROTECT,
 	ACT_ERASE_ONLY,
-	ACT_CRC
+	ACT_CRC,
+    ACT_SPECIAL_CMD,
+    ACT_EXT_SPECIAL_CMD
 };
 
 enum actions	action		= ACT_NONE;
@@ -88,6 +90,7 @@ FILE		*diag;
 char		reset_flag	= 0;
 char		*filename;
 char		*gpio_seq	= NULL;
+char		*cmd_string	= NULL; /* extended command string */
 uint32_t	start_addr	= 0;
 uint32_t	readwrite_len	= 0;
 
@@ -112,6 +115,10 @@ static const char *action2str(enum actions act)
 			return "flash erase";
 		case ACT_CRC:
 			return "memory crc";
+        case ACT_SPECIAL_CMD:
+			return "special command";
+        case ACT_EXT_SPECIAL_CMD:
+			return "eXtended special command";
 		default:
 			return "";
 	};
@@ -645,8 +652,21 @@ int main(int argc, char* argv[]) {
 			crc_val);
 		ret = 0;
 		goto close;
-	} else
+    } else if (action == ACT_SPECIAL_CMD) {
+		fprintf(diag, "Special command START\n");
+        s_err = stm32_special_cmd(stm);
+		if (s_err != STM32_ERR_OK) {
+			fprintf(stderr, "Failed to execute Special Command\n");
+			goto close;
+		}
+        fprintf(diag, "Special command DONE\n");
+		goto close;        
+	} else if (action == ACT_EXT_SPECIAL_CMD) {
+		fprintf(diag, "Command not implemented yet!\n");
+		goto close;
+    } else {
 		ret = 0;
+    }
 
 close:
 	if (stm && exec_flag && ret == 0) {
@@ -690,7 +710,7 @@ int parse_options(int argc, char *argv[])
 	int c;
 	char *pLen;
 
-	while ((c = getopt(argc, argv, "a:b:m:r:w:e:vn:g:jkfcChuos:S:F:i:R")) != -1) {
+	while ((c = getopt(argc, argv, "a:b:m:r:w:e:vn:g:jkfcChuos:S:F:i:Rx:X")) != -1) {
 		switch(c) {
 			case 'a':
 				port_opts.bus_addr = strtoul(optarg, NULL, 0);
@@ -880,6 +900,25 @@ int parse_options(int argc, char *argv[])
 				}
 				action = ACT_CRC;
 				break;
+            case 'x':
+				if (action != ACT_NONE) {
+					err_multi_action(ACT_SPECIAL_CMD);
+					return 1;
+				}
+				action = ACT_SPECIAL_CMD;
+				cmd_string = optarg;
+				fprintf(stdout, "DEBUG: Given string: %s\n", cmd_string);
+                break;
+            case 'X':
+                if (action != ACT_NONE) {
+					err_multi_action(ACT_EXT_SPECIAL_CMD);
+					return 1;
+				}
+				action = ACT_EXT_SPECIAL_CMD;
+                cmd_string = optarg;
+				fprintf(stderr, "ERROR: eXtended special command not implemented yet!\n");
+				return 1;
+                break;
 		}
 	}
 
@@ -937,6 +976,10 @@ void show_help(char *name) {
 		"	-i GPIO_string	GPIO sequence to enter/exit bootloader mode\n"
 		"			GPIO_string=[entry_seq][:[exit_seq]]\n"
 		"			sequence=[[-]signal]&|,[sequence]\n"
+        "	-x CMD_string	hex-encoded special command \n"
+		"			CMD_string=cmd_opcode[:cmd_param]\n"
+        "	-X CMD_string	hex-encoded eXtended special command (RFU - not implemented yet)\n"
+		"			CMD_string=cmd_opcode[:cmd_param[:cmd_extpar]]\n"
 		"\n"
 		"GPIO sequence:\n"
 		"	The following signals can appear in a sequence:\n"
@@ -948,6 +991,11 @@ void show_help(char *name) {
 		"	The following modifiers can be prepended to a signal:\n"
 		"	  '-' reset signal (low) instead of setting it (high)\n"
 		"\n"
+        "Special command:\n"
+		"	cmd_opcode:   defines the sub-command op-code (2 bytes, MSB-first)\n"
+        "	cmd_param:   defines the custom command parameters (up to 128 bytes, application-speciffic)\n"
+        "	cmd_extpar:   defines the custom command extended parameters (up to 1024 bytes, application-speciffic)\n"
+        "\n"
 		"Examples:\n"
 		"	Get device information:\n"
 		"		%s /dev/ttyS0\n"

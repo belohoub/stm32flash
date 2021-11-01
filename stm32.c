@@ -44,6 +44,8 @@
 #define STM32_CMD_ER	0x43	/* erase */
 #define STM32_CMD_EE	0x44	/* extended erase */
 #define STM32_CMD_EE_NS	0x45	/* extended erase no-stretch */
+#define STM32_CMD_SC	0x50	/* special command */
+#define STM32_CMD_ES	0x51	/* extended special command */
 #define STM32_CMD_WP	0x63	/* write protect */
 #define STM32_CMD_WP_NS	0x64	/* write protect no-stretch */
 #define STM32_CMD_UW	0x73	/* write unprotect */
@@ -73,6 +75,7 @@ struct stm32_cmd {
 	uint8_t go;
 	uint8_t wm;
 	uint8_t er; /* this may be extended erase */
+	uint8_t sc; /* this may be extended special command */
 	uint8_t wp;
 	uint8_t uw;
 	uint8_t rp;
@@ -508,6 +511,10 @@ stm32_t *stm32_init(struct port_interface *port, const char init)
 		case STM32_CMD_CRC:
 			stm->cmd->crc = newer(stm->cmd->crc, val);
 			break;
+        case STM32_CMD_ES:
+        case STM32_CMD_SC:
+			stm->cmd->sc = newer(stm->cmd->sc, val);
+            break;
 		default:
 			if (new_cmds++ == 0)
 				fprintf(stderr,
@@ -929,7 +936,6 @@ static stm32_err_t stm32_pages_erase(const stm32_t *stm, uint32_t spage, uint32_
 		i = 0;
 	}
 
->>>>>>> master
 	for (pg_num = spage; pg_num < spage + pages; pg_num++) {
 		pg_byte = pg_num >> 8;
 		cs ^= pg_byte;
@@ -1219,5 +1225,119 @@ stm32_err_t stm32_crc_wrapper(const stm32_t *stm, uint32_t address,
 	}
 	fprintf(stderr, "Done.\n");
 	*crc = current_crc;
+	return STM32_ERR_OK;
+}
+
+
+/**
+ * Special Command Implementation
+ * 
+ */
+stm32_err_t stm32_special_cmd(const stm32_t *stm)
+{
+	struct port_interface *port = stm->port;
+	uint8_t buf[128+2+1];
+	uint8_t i;
+	/* data packet length */
+	uint16_t length = 0;
+	
+	if (stm->cmd->sc == STM32_CMD_ERR) {
+		fprintf(stderr, "Error: Special Command not implemented in bootloader.\n");
+		return STM32_ERR_NO_CMD;
+	}
+	
+	if (stm32_send_command(stm, stm->cmd->sc) != STM32_ERR_OK)
+		return STM32_ERR_UNKNOWN;
+    
+	/* Command opcode - 2 bytes MSB-first */
+	buf[0] = 0x00;
+	buf[1] = 0x00;
+	buf[2] = buf[0] ^ buf[1];
+	
+	/* Send data */
+	if (port->write(port, buf, 3) != PORT_ERR_OK) {
+		return STM32_ERR_UNKNOWN;
+    }
+    
+	if (stm32_get_ack(stm) != STM32_ERR_OK) {
+		return STM32_ERR_UNKNOWN;
+	}
+	
+	/* Number of bytes - 2 bytes */
+	length = 2;
+	buf[0] = length >> 8;
+	buf[1] |= length & 0xFF;
+	
+	/* Data */
+	buf[2] = 0x00;
+	buf[3] = 0x00;
+	
+	/* Checksum */
+	buf[length + 2] = buf[0] ^ buf[1];
+	for (i = 2; i < length + 2; i++) {
+		buf[length + 2] ^= buf[i];
+	}
+	
+	/* Send data */
+	if (port->write(port, buf, (length + 2 + 1)) != PORT_ERR_OK) {
+		return STM32_ERR_UNKNOWN;
+    }
+    
+	if (stm32_get_ack(stm) != STM32_ERR_OK) {
+		return STM32_ERR_UNKNOWN;
+	}
+	
+	/* Data reception */
+	/* Get number of bytes to receive - 2 bytes, MSB-first - no checksum! (!?!) */
+	if (port->read(port, buf, 2) != PORT_ERR_OK) {
+		return STM32_ERR_UNKNOWN;
+	}
+	
+	length = (((uint16_t) buf[0]) << 8) | buf[1];
+    
+	if (length != 0) {
+		/* receive data ...  */
+		if (port->read(port, buf, length) != PORT_ERR_OK) {
+			return STM32_ERR_UNKNOWN;
+		}
+		// DBG print -  ASCII/HEX reopresentation of received status
+		length = (length > 128) ? 128 : length;
+		buf[length] = 0;
+		fprintf(stdout, "RxData ASCII: %s\n", &(buf[0]));
+        fprintf(stdout, "RxData HEX: 0x");
+        for(i = 0; i < length; i++) {
+            fprintf(stdout, "%02X", buf[i]);
+        }
+        fprintf(stdout, "\n");
+	}
+	
+	/* Status reception */
+	/* Get number of bytes to receive - 2 bytes, MSB-first - no checksum! (!?!) */
+	if (port->read(port, buf, 2) != PORT_ERR_OK) {
+		return STM32_ERR_UNKNOWN;
+	}
+	
+	length = (((uint16_t) buf[0]) << 8) | buf[1];
+    
+	if (length != 0) {
+		/* receive status ...  */
+		if (port->read(port, buf, length) != PORT_ERR_OK) {
+			return STM32_ERR_UNKNOWN;
+		}
+		// DBG print -  ASCII/HEX representation of received status
+		length = (length > 128) ? 128 : length;
+		buf[length] = 0;
+		fprintf(stdout, "Status ASCII: %s\n",  &(buf[0]));
+        fprintf(stdout, "Status HEX: 0x");
+        for(i = 0; i < length; i++) {
+            fprintf(stdout, "%02X", buf[i]);
+        }
+        fprintf(stdout, "\n");
+	}
+	
+	if (stm32_get_ack(stm) != STM32_ERR_OK) {
+		return STM32_ERR_UNKNOWN;
+	}
+	
 	return STM32_ERR_OK;
 }
