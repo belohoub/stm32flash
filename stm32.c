@@ -1233,13 +1233,44 @@ stm32_err_t stm32_crc_wrapper(const stm32_t *stm, uint32_t address,
  * Special Command Implementation
  * 
  */
-stm32_err_t stm32_special_cmd(const stm32_t *stm)
+uint32_t stm32_special_cmd(const stm32_t *stm, uint16_t cmd_opcode, const char *cmd_param)
 {
 	struct port_interface *port = stm->port;
-	uint8_t buf[128+2+1];
+	uint8_t buf[3];
 	uint8_t i;
 	/* data packet length */
 	uint16_t length = 0;
+	
+	uint8_t data[129]; /* 128 + 1 for '\0* in string dumps */
+	
+	fprintf(stdout, "Opcode: 0x%04X\n", cmd_opcode);
+	
+	if ((strlen(cmd_param) % 2) != 0) {
+		fprintf(stderr, "Error: Special Command parameter must contain EVEN digits!\n");
+		return STM32_ERR_NO_CMD;
+	}
+	
+	if (strlen(cmd_param) > (128*2)) {
+		fprintf(stderr, "Error: Special Command parameter must be shorter or equal to 128 bytes (256 digits)\n");
+		return STM32_ERR_NO_CMD;
+	}
+	
+	if (cmd_param != NULL) {
+		/* parse parameter */
+		char c[3];
+		c[2] = '\0';
+		for (i = 0; i < (strlen(cmd_param) / 2); i++) {
+			c[0] = cmd_param[2*i];
+			c[1] = cmd_param[2*i+1];
+			data[i] = strtol(c, NULL , 16);
+			length++;
+		}
+		fprintf(stdout, "Parameter: 0x");
+		for(i = 0; i < length; i++) {
+			fprintf(stdout, "%02X", data[i]);
+		}
+		fprintf(stdout, "\n");
+ 	}
 	
 	if (stm->cmd->sc == STM32_CMD_ERR) {
 		fprintf(stderr, "Error: Special Command not implemented in bootloader.\n");
@@ -1250,8 +1281,8 @@ stm32_err_t stm32_special_cmd(const stm32_t *stm)
 		return STM32_ERR_UNKNOWN;
     
 	/* Command opcode - 2 bytes MSB-first */
-	buf[0] = 0x00;
-	buf[1] = 0x00;
+	buf[0] = (uint8_t) (cmd_opcode >> 8) & 0x00FF;
+	buf[1] = (uint8_t) cmd_opcode;
 	buf[2] = buf[0] ^ buf[1];
 	
 	/* Send data */
@@ -1263,23 +1294,28 @@ stm32_err_t stm32_special_cmd(const stm32_t *stm)
 		return STM32_ERR_UNKNOWN;
 	}
 	
-	/* Number of bytes - 2 bytes */
-	length = 2;
+	/* Number of bytes */
 	buf[0] = length >> 8;
 	buf[1] |= length & 0xFF;
 	
-	/* Data */
-	buf[2] = 0x00;
-	buf[3] = 0x00;
-	
 	/* Checksum */
-	buf[length + 2] = buf[0] ^ buf[1];
-	for (i = 2; i < length + 2; i++) {
-		buf[length + 2] ^= buf[i];
+	buf[2] = buf[0] ^ buf[1];
+	for (i = 0; i < length; i++) {
+		buf[2] ^= data[i];
 	}
 	
-	/* Send data */
-	if (port->write(port, buf, (length + 2 + 1)) != PORT_ERR_OK) {
+	/* Send length */
+	if (port->write(port, buf, 2) != PORT_ERR_OK) {
+		return STM32_ERR_UNKNOWN;
+    }
+    
+    /* Send data */
+	if (port->write(port, data, length) != PORT_ERR_OK) {
+		return STM32_ERR_UNKNOWN;
+    }
+    
+    /* Send checksum */
+	if (port->write(port, &(buf[2]), 1) != PORT_ERR_OK) {
 		return STM32_ERR_UNKNOWN;
     }
     
@@ -1297,18 +1333,18 @@ stm32_err_t stm32_special_cmd(const stm32_t *stm)
     
 	if (length != 0) {
 		/* receive data ...  */
-		if (port->read(port, buf, length) != PORT_ERR_OK) {
+		if (port->read(port, data, length) != PORT_ERR_OK) {
 			return STM32_ERR_UNKNOWN;
 		}
 		// DBG print -  ASCII/HEX reopresentation of received status
 		length = (length > 128) ? 128 : length;
-		buf[length] = 0;
-		fprintf(stdout, "RxData ASCII: %s\n", &(buf[0]));
-        fprintf(stdout, "RxData HEX: 0x");
-        for(i = 0; i < length; i++) {
-            fprintf(stdout, "%02X", buf[i]);
-        }
-        fprintf(stdout, "\n");
+		data[length] = 0;
+		fprintf(stdout, "RxData ASCII: %s\n", &(data[0]));
+		fprintf(stdout, "RxData HEX: 0x");
+		for(i = 0; i < length; i++) {
+			fprintf(stdout, "%02X", data[i]);
+		}
+		fprintf(stdout, "\n");
 	}
 	
 	/* Status reception */
@@ -1321,18 +1357,18 @@ stm32_err_t stm32_special_cmd(const stm32_t *stm)
     
 	if (length != 0) {
 		/* receive status ...  */
-		if (port->read(port, buf, length) != PORT_ERR_OK) {
+		if (port->read(port, data, length) != PORT_ERR_OK) {
 			return STM32_ERR_UNKNOWN;
 		}
 		// DBG print -  ASCII/HEX representation of received status
 		length = (length > 128) ? 128 : length;
-		buf[length] = 0;
-		fprintf(stdout, "Status ASCII: %s\n",  &(buf[0]));
-        fprintf(stdout, "Status HEX: 0x");
-        for(i = 0; i < length; i++) {
-            fprintf(stdout, "%02X", buf[i]);
-        }
-        fprintf(stdout, "\n");
+		data[length] = 0;
+		fprintf(stdout, "Status ASCII: %s\n",  &(data[0]));
+		fprintf(stdout, "Status HEX: 0x");
+		for(i = 0; i < length; i++) {
+			fprintf(stdout, "%02X", data[i]);
+		}
+		fprintf(stdout, "\n");
 	}
 	
 	if (stm32_get_ack(stm) != STM32_ERR_OK) {

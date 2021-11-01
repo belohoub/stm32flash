@@ -90,7 +90,8 @@ FILE		*diag;
 char		reset_flag	= 0;
 char		*filename;
 char		*gpio_seq	= NULL;
-char		*cmd_string	= NULL; /* extended command string */
+uint16_t    cmd_opcode	= 0x0000; /* special command opcode */
+char		*cmd_param	= NULL;
 uint32_t	start_addr	= 0;
 uint32_t	readwrite_len	= 0;
 
@@ -653,20 +654,21 @@ int main(int argc, char* argv[]) {
 		ret = 0;
 		goto close;
     } else if (action == ACT_SPECIAL_CMD) {
-		fprintf(diag, "Special command START\n");
-        s_err = stm32_special_cmd(stm);
+		fprintf(diag, "Executing special command\n");
+		fflush(diag);
+		s_err = stm32_special_cmd(stm, cmd_opcode, cmd_param);
 		if (s_err != STM32_ERR_OK) {
 			fprintf(stderr, "Failed to execute Special Command\n");
 			goto close;
 		}
-        fprintf(diag, "Special command DONE\n");
+		fprintf(diag, "Done.\n");
 		goto close;        
 	} else if (action == ACT_EXT_SPECIAL_CMD) {
 		fprintf(diag, "Command not implemented yet!\n");
 		goto close;
     } else {
 		ret = 0;
-    }
+	}
 
 close:
 	if (stm && exec_flag && ret == 0) {
@@ -906,8 +908,11 @@ int parse_options(int argc, char *argv[])
 					return 1;
 				}
 				action = ACT_SPECIAL_CMD;
-				cmd_string = optarg;
-				fprintf(stdout, "DEBUG: Given string: %s\n", cmd_string);
+				
+				cmd_opcode = strtoul(optarg, &pLen, 16);
+				if (*pLen == ':') {
+					cmd_param = (pLen+1);
+				}
                 break;
             case 'X':
                 if (action != ACT_NONE) {
@@ -915,7 +920,7 @@ int parse_options(int argc, char *argv[])
 					return 1;
 				}
 				action = ACT_EXT_SPECIAL_CMD;
-                cmd_string = optarg;
+                
 				fprintf(stderr, "ERROR: eXtended special command not implemented yet!\n");
 				return 1;
                 break;
