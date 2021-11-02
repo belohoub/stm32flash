@@ -662,9 +662,11 @@ int main(int argc, char* argv[]) {
 			goto close;
 		}
 		fprintf(diag, "Done.\n");
+		ret = 0;
 		goto close;        
 	} else if (action == ACT_EXT_SPECIAL_CMD) {
 		fprintf(diag, "Command not implemented yet!\n");
+		ret = 1;
 		goto close;
     } else {
 		ret = 0;
