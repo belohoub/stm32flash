@@ -1232,6 +1232,8 @@ stm32_err_t stm32_crc_wrapper(const stm32_t *stm, uint32_t address,
 /**
  * Special Command Implementation
  * 
+ * Note: Rx status and data lengths are also limited to 128 bytes (same as parameter)
+ * 
  */
 uint32_t stm32_special_cmd(const stm32_t *stm, uint16_t cmd_opcode, const char *cmd_param)
 {
@@ -1332,12 +1334,15 @@ uint32_t stm32_special_cmd(const stm32_t *stm, uint16_t cmd_opcode, const char *
 	length = (((uint16_t) buf[0]) << 8) | buf[1];
     
 	if (length != 0) {
+		if (length > 128) {
+			fprintf(stderr, "Error: Special Command data produced by MCU must be shorter or equal to 128 bytes.\n");
+			return STM32_ERR_UNKNOWN;
+		}
 		/* receive data ...  */
 		if (port->read(port, data, length) != PORT_ERR_OK) {
 			return STM32_ERR_UNKNOWN;
 		}
 		// DBG print -  ASCII/HEX reopresentation of received status
-		length = (length > 128) ? 128 : length;
 		data[length] = 0;
 		fprintf(stdout, "RxData ASCII: %s\n", &(data[0]));
 		fprintf(stdout, "RxData HEX: 0x");
@@ -1356,12 +1361,15 @@ uint32_t stm32_special_cmd(const stm32_t *stm, uint16_t cmd_opcode, const char *
 	length = (((uint16_t) buf[0]) << 8) | buf[1];
     
 	if (length != 0) {
+		if (length > 128) {
+			fprintf(stderr, "Error: Special Command status produced by MCU must be shorter or equal to 128 bytes.\n");
+			return STM32_ERR_UNKNOWN;
+		}
 		/* receive status ...  */
 		if (port->read(port, data, length) != PORT_ERR_OK) {
 			return STM32_ERR_UNKNOWN;
 		}
 		// DBG print -  ASCII/HEX representation of received status
-		length = (length > 128) ? 128 : length;
 		data[length] = 0;
 		fprintf(stdout, "Status ASCII: %s\n",  &(data[0]));
 		fprintf(stdout, "Status HEX: 0x");
