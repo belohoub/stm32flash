@@ -998,10 +998,11 @@ void show_help(char *name) {
 		"	The following modifiers can be prepended to a signal:\n"
 		"	  '-' reset signal (low) instead of setting it (high)\n"
 		"\n"
-        "Special command:\n"
+		"Special command:\n"
 		"	cmd_opcode:   defines the sub-command op-code (2 bytes, MSB-first)\n"
-        "	cmd_param:   defines the custom command parameters (up to 128 bytes, application-speciffic)\n"
-        "	cmd_extpar:   defines the custom command extended parameters (up to 1024 bytes, application-speciffic)\n"
+		"	cmd_param:   defines the custom command parameters (up to 128 bytes, application-speciffic)\n"
+		"	cmd_extpar:   !!!Not implemented yet!!! defines the custom command extended parameters (up to 1024 bytes, application-speciffic)\n"
+		"	cmd_param and cmd_extpar can also be read from stdin; if you wish to read binary from stdin (e.g. unix pipe |), use  \'&length\' syntax in place of cmd_param or cmd_extpar respectively '&length' represents the parameter length in bytes"
         "\n"
 		"Examples:\n"
 		"	Get device information:\n"
@@ -1028,7 +1029,14 @@ void show_help(char *name) {
 		"	GPIO sequence adding delay after port opening:\n"
 		"	- entry sequence: delay 500ms\n"
 		"	- exit sequence: rts=high, dtr=low, 300ms delay, GPIO_2=high\n"
-		"		%s -R -i ',,,,,:rts&-dtr,,,2' /dev/ttyS0\n",
+		"		%s -R -i ',,,,,:rts&-dtr,,,2' /dev/ttyS0\n"
+		"\n"
+		"	Execute special \'Hello World\' command (inline parameter):\n"
+		"		%s -x 0000:4F4B21 /dev/ttyS0\n"
+		"	Execute special \'Hello World\' command (pipe-passed binary parameter):\n"
+		"		echo -n -e '\\x4f\\x4b\\x21' | %s -x 0000:&3 /dev/ttyS0\n",
+		name,
+		name,
 		name,
 		name,
 		name,
