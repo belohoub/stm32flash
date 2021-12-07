@@ -1298,7 +1298,7 @@ uint32_t stm32_special_cmd(const stm32_t *stm, uint16_t cmd_opcode, const char *
 	
 	/* Number of bytes */
 	buf[0] = length >> 8;
-	buf[1] |= length & 0xFF;
+	buf[1] = length & 0xFF;
 	
 	/* Checksum */
 	buf[2] = buf[0] ^ buf[1];
