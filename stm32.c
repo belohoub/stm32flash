@@ -1247,17 +1247,17 @@ uint32_t stm32_special_cmd(const stm32_t *stm, uint16_t cmd_opcode, const char *
 	
 	fprintf(stdout, "Opcode: 0x%04X\n", cmd_opcode);
 	
-	if ((strlen(cmd_param) % 2) != 0) {
-		fprintf(stderr, "Error: Special Command parameter must contain EVEN digits!\n");
-		return STM32_ERR_NO_CMD;
-	}
-	
-	if (strlen(cmd_param) > (128*2)) {
-		fprintf(stderr, "Error: Special Command parameter must be shorter or equal to 128 bytes (256 digits)\n");
-		return STM32_ERR_NO_CMD;
-	}
-	
 	if (cmd_param != NULL) {
+		if ((strlen(cmd_param) % 2) != 0) {
+			fprintf(stderr, "Error: Special Command parameter must contain EVEN digits!\n");
+			return STM32_ERR_NO_CMD;
+		}
+
+		if (strlen(cmd_param) > (128*2)) {
+			fprintf(stderr, "Error: Special Command parameter must be shorter or equal to 128 bytes (256 digits)\n");
+			return STM32_ERR_NO_CMD;
+		}
+
 		/* parse parameter */
 		char c[3];
 		c[2] = '\0';
@@ -1312,7 +1312,7 @@ uint32_t stm32_special_cmd(const stm32_t *stm, uint16_t cmd_opcode, const char *
     }
     
     /* Send data */
-	if (port->write(port, data, length) != PORT_ERR_OK) {
+	if ((length > 0) && (port->write(port, data, length) != PORT_ERR_OK)) {
 		return STM32_ERR_UNKNOWN;
     }
     
