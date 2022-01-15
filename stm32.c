@@ -1235,7 +1235,7 @@ stm32_err_t stm32_crc_wrapper(const stm32_t *stm, uint32_t address,
  * Note: Rx status and data lengths are also limited to 128 bytes (same as parameter)
  * 
  */
-uint32_t stm32_special_cmd(const stm32_t *stm, uint16_t cmd_opcode, const char *cmd_param)
+uint32_t stm32_special_cmd(const stm32_t *stm, uint16_t cmd_opcode, const char *cmd_param, int exec_timeout)
 {
 	struct port_interface *port = stm->port;
 	uint8_t buf[3];
@@ -1279,8 +1279,9 @@ uint32_t stm32_special_cmd(const stm32_t *stm, uint16_t cmd_opcode, const char *
 		return STM32_ERR_NO_CMD;
 	}
 	
-	if (stm32_send_command(stm, stm->cmd->sc) != STM32_ERR_OK)
+	if (stm32_send_command(stm, stm->cmd->sc) != STM32_ERR_OK) {
 		return STM32_ERR_UNKNOWN;
+	}
     
 	/* Command opcode - 2 bytes MSB-first */
 	buf[0] = (uint8_t) (cmd_opcode >> 8) & 0x00FF;
@@ -1334,7 +1335,7 @@ uint32_t stm32_special_cmd(const stm32_t *stm, uint16_t cmd_opcode, const char *
     while(1) {
         if (port->read(port, buf, 2) != PORT_ERR_OK) {
             gettimeofday(&end, NULL);
-            if (end.tv_sec < (start.tv_sec + 5)) {
+            if (end.tv_sec < (start.tv_sec + exec_timeout)) {
                 continue;
             }
             return STM32_ERR_UNKNOWN;

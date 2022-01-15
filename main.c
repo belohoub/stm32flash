@@ -81,6 +81,7 @@ int             spage           = 0;
 int             no_erase        = 0;
 char		verify		= 0;
 int		retry		= 10;
+int		timeout		= 5;
 char		exec_flag	= 0;
 uint32_t	execute		= 0;
 char		init_flag	= 1;
@@ -656,7 +657,7 @@ int main(int argc, char* argv[]) {
     } else if (action == ACT_SPECIAL_CMD) {
 		fprintf(diag, "Executing special command\n");
 		fflush(diag);
-		s_err = stm32_special_cmd(stm, cmd_opcode, cmd_param);
+		s_err = stm32_special_cmd(stm, cmd_opcode, cmd_param, timeout);
 		if (s_err != STM32_ERR_OK) {
 			fprintf(stderr, "Failed to execute Special Command\n");
 			goto close;
@@ -714,7 +715,7 @@ int parse_options(int argc, char *argv[])
 	int c;
 	char *pLen;
 
-	while ((c = getopt(argc, argv, "a:b:m:r:w:e:vn:g:jkfcChuos:S:F:i:Rx:X")) != -1) {
+	while ((c = getopt(argc, argv, "a:b:m:r:w:e:vn:g:jkfcChuos:S:F:i:Rt:x:X")) != -1) {
 		switch(c) {
 			case 'a':
 				port_opts.bus_addr = strtoul(optarg, NULL, 0);
@@ -915,14 +916,19 @@ int parse_options(int argc, char *argv[])
 				if (*pLen == ':') {
 					cmd_param = (pLen+1);
 				}
-                break;
+				break;
+				
+            case 't':
+				timeout = strtoul(optarg, NULL, 0);
+				break;
+
             case 'X':
-                if (action != ACT_NONE) {
+				if (action != ACT_NONE) {
 					err_multi_action(ACT_EXT_SPECIAL_CMD);
 					return 1;
 				}
 				action = ACT_EXT_SPECIAL_CMD;
-                
+				
 				fprintf(stderr, "ERROR: eXtended special command not implemented yet!\n");
 				return 1;
                 break;
@@ -983,6 +989,7 @@ void show_help(char *name) {
 		"	-i GPIO_string	GPIO sequence to enter/exit bootloader mode\n"
 		"			GPIO_string=[entry_seq][:[exit_seq]]\n"
 		"			sequence=[[-]signal]&|,[sequence]\n"
+        "	-t timeout	Timeout in seconds (default 5s; currently applies on special command only)\n"
         "	-x CMD_string	hex-encoded special command \n"
 		"			CMD_string=cmd_opcode[:cmd_param]\n"
         "	-X CMD_string	hex-encoded eXtended special command (RFU - not implemented yet)\n"
@@ -1032,7 +1039,7 @@ void show_help(char *name) {
 		"		%s -R -i ',,,,,:rts&-dtr,,,2' /dev/ttyS0\n"
 		"\n"
 		"	Execute special \'Hello World\' command (inline parameter):\n"
-		"		%s -x 0000:4F4B21 /dev/ttyS0\n"
+		"		%s -x 0000:4F4B21 -t 32 /dev/ttyS0\n"
 		"	Execute special \'Hello World\' command (pipe-passed binary parameter):\n"
 		"		echo -n -e '\\x4f\\x4b\\x21' | %s -x 0000:&3 /dev/ttyS0\n",
 		name,

@@ -89,7 +89,7 @@ stm32_err_t stm32_crc_memory(const stm32_t *stm, uint32_t address,
 stm32_err_t stm32_crc_wrapper(const stm32_t *stm, uint32_t address,
 			      uint32_t length, uint32_t *crc);
 uint32_t stm32_sw_crc(uint32_t crc, uint8_t *buf, unsigned int len);
-uint32_t stm32_special_cmd(const stm32_t *stm, uint16_t cmd_opcode, const char *cmd_param);
+uint32_t stm32_special_cmd(const stm32_t *stm, uint16_t cmd_opcode, const char *cmd_param, int exec_timeout);
 
 #endif
 
