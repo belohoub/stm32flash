@@ -1325,11 +1325,26 @@ uint32_t stm32_special_cmd(const stm32_t *stm, uint16_t cmd_opcode, const char *
 		return STM32_ERR_UNKNOWN;
 	}
 	
+	/* wait data processing */
+	struct timeval start, end;
+	gettimeofday(&start, NULL);
+		
 	/* Data reception */
 	/* Get number of bytes to receive - 2 bytes, MSB-first - no checksum! (!?!) */
-	if (port->read(port, buf, 2) != PORT_ERR_OK) {
-		return STM32_ERR_UNKNOWN;
-	}
+    while(1) {
+        if (port->read(port, buf, 2) != PORT_ERR_OK) {
+            gettimeofday(&end, NULL);
+            if (end.tv_sec < (start.tv_sec + 5)) {
+                continue;
+            }
+            return STM32_ERR_UNKNOWN;
+        } else {
+            gettimeofday(&end, NULL);
+            break;
+        }
+    }
+    double scRuntime = (end.tv_sec - start.tv_sec) * 1e6;
+    scRuntime = (scRuntime + (end.tv_usec - start.tv_usec)) * 1e-6;
 	
 	length = (((uint16_t) buf[0]) << 8) | buf[1];
     
@@ -1378,6 +1393,8 @@ uint32_t stm32_special_cmd(const stm32_t *stm, uint16_t cmd_opcode, const char *
 		}
 		fprintf(stdout, "\n");
 	}
+	
+ 	fprintf(stdout, "Execution time: %f\n", scRuntime);
 	
 	if (stm32_get_ack(stm) != STM32_ERR_OK) {
 		return STM32_ERR_UNKNOWN;
