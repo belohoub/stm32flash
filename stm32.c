@@ -1246,6 +1246,7 @@ uint32_t stm32_special_cmd(const stm32_t *stm, uint16_t cmd_opcode, const char *
 	uint8_t data[129]; /* 128 + 1 for '\0* in string dumps */
 	
 	fprintf(stdout, "Opcode: 0x%04X\n", cmd_opcode);
+    fprintf(stdout, "Timeout: %d s\n", exec_timeout);
 	
 	if (cmd_param != NULL) {
 		if ((strlen(cmd_param) % 2) != 0) {

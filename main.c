@@ -81,7 +81,7 @@ int             spage           = 0;
 int             no_erase        = 0;
 char		verify		= 0;
 int		retry		= 10;
-int		timeout		= 5;
+int		scmd_timeout		= 5;
 char		exec_flag	= 0;
 uint32_t	execute		= 0;
 char		init_flag	= 1;
@@ -91,8 +91,9 @@ FILE		*diag;
 char		reset_flag	= 0;
 char		*filename;
 char		*gpio_seq	= NULL;
-uint16_t    cmd_opcode	= 0x0000; /* special command opcode */
-char		*cmd_param	= NULL;
+uint16_t    scmd_opcode	= 0x0000; /* special command opcode */
+char		*scmd_param	= NULL; /* special command parameter */
+char		*escmd_param	= NULL; /* extended special command parameter */
 uint32_t	start_addr	= 0;
 uint32_t	readwrite_len	= 0;
 
@@ -657,7 +658,7 @@ int main(int argc, char* argv[]) {
     } else if (action == ACT_SPECIAL_CMD) {
 		fprintf(diag, "Executing special command\n");
 		fflush(diag);
-		s_err = stm32_special_cmd(stm, cmd_opcode, cmd_param, timeout);
+		s_err = stm32_special_cmd(stm, scmd_opcode, scmd_param, scmd_timeout);
 		if (s_err != STM32_ERR_OK) {
 			fprintf(stderr, "Failed to execute Special Command\n");
 			goto close;
@@ -666,7 +667,7 @@ int main(int argc, char* argv[]) {
 		ret = 0;
 		goto close;        
 	} else if (action == ACT_EXT_SPECIAL_CMD) {
-		fprintf(diag, "Command not implemented yet!\n");
+		fprintf(diag, "Extended special command not implemented yet!\n");
 		ret = 1;
 		goto close;
     } else {
@@ -715,7 +716,7 @@ int parse_options(int argc, char *argv[])
 	int c;
 	char *pLen;
 
-	while ((c = getopt(argc, argv, "a:b:m:r:w:e:vn:g:jkfcChuos:S:F:i:Rt:x:X")) != -1) {
+	while ((c = getopt(argc, argv, "a:b:m:r:w:e:vn:g:jkfcChuos:S:F:i:Rx:")) != -1) {
 		switch(c) {
 			case 'a':
 				port_opts.bus_addr = strtoul(optarg, NULL, 0);
@@ -911,27 +912,30 @@ int parse_options(int argc, char *argv[])
 					return 1;
 				}
 				action = ACT_SPECIAL_CMD;
+                
+				// find timeout
+				pLen = strchr(optarg, '+');
+				if (pLen != NULL) {
+					// timeout was set
+					*pLen = '\0'; // set end of string
+					pLen = pLen + 1;
+					scmd_timeout = strtoul(pLen, NULL, 0);
+				}
 				
-				cmd_opcode = strtoul(optarg, &pLen, 16);
+				scmd_opcode = strtoul(optarg, &pLen, 16);
 				if (*pLen == ':') {
-					cmd_param = (pLen+1);
+					scmd_param = (pLen+1);
+					                    
+					escmd_param = strchr(scmd_param, ':');
+					if (escmd_param != NULL) {
+						// this is extended special command
+						action = ACT_EXT_SPECIAL_CMD;
+						*escmd_param = '\0'; // set the end of string
+						escmd_param = (escmd_param+1);
+					}
 				}
-				break;
 				
-            case 't':
-				timeout = strtoul(optarg, NULL, 0);
 				break;
-
-            case 'X':
-				if (action != ACT_NONE) {
-					err_multi_action(ACT_EXT_SPECIAL_CMD);
-					return 1;
-				}
-				action = ACT_EXT_SPECIAL_CMD;
-				
-				fprintf(stderr, "ERROR: eXtended special command not implemented yet!\n");
-				return 1;
-                break;
 		}
 	}
 
@@ -989,11 +993,9 @@ void show_help(char *name) {
 		"	-i GPIO_string	GPIO sequence to enter/exit bootloader mode\n"
 		"			GPIO_string=[entry_seq][:[exit_seq]]\n"
 		"			sequence=[[-]signal]&|,[sequence]\n"
-        "	-t timeout	Timeout in seconds (default 5s; currently applies on special command only)\n"
-        "	-x CMD_string	hex-encoded special command \n"
-		"			CMD_string=cmd_opcode[:cmd_param]\n"
-        "	-X CMD_string	hex-encoded eXtended special command (RFU - not implemented yet)\n"
-		"			CMD_string=cmd_opcode[:cmd_param[:cmd_extpar]]\n"
+        "	-x CMD_string	hex-encoded special or extended-special command,\n"
+        "           and command timeout in seconds (default timeout is 5s)\n"
+		"			CMD_string=scmd_opcode[:scmd_param][+timeout]\n"
 		"\n"
 		"GPIO sequence:\n"
 		"	The following signals can appear in a sequence:\n"
@@ -1006,10 +1008,10 @@ void show_help(char *name) {
 		"	  '-' reset signal (low) instead of setting it (high)\n"
 		"\n"
 		"Special command:\n"
-		"	cmd_opcode:   defines the sub-command op-code (2 bytes, MSB-first)\n"
-		"	cmd_param:   defines the custom command parameters (up to 128 bytes, application-speciffic)\n"
+		"	scmd_opcode:   defines the sub-command op-code (2 bytes, MSB-first)\n"
+		"	scmd_param:   defines the custom command parameters (up to 128 bytes, application-speciffic)\n"
 		"	cmd_extpar:   !!!Not implemented yet!!! defines the custom command extended parameters (up to 1024 bytes, application-speciffic)\n"
-		"	cmd_param and cmd_extpar can also be read from stdin; if you wish to read binary from stdin (e.g. unix pipe |), use  \'&length\' syntax in place of cmd_param or cmd_extpar respectively '&length' represents the parameter length in bytes"
+		"	scmd_param and cmd_extpar can also be read from stdin; if you wish to read binary from stdin (e.g. unix pipe |), use  \'&length\' syntax in place of scmd_param or cmd_extpar respectively '&length' represents the parameter length in bytes"
         "\n"
 		"Examples:\n"
 		"	Get device information:\n"
@@ -1038,11 +1040,8 @@ void show_help(char *name) {
 		"	- exit sequence: rts=high, dtr=low, 300ms delay, GPIO_2=high\n"
 		"		%s -R -i ',,,,,:rts&-dtr,,,2' /dev/ttyS0\n"
 		"\n"
-		"	Execute special \'Hello World\' command (inline parameter):\n"
-		"		%s -x 0000:4F4B21 -t 32 /dev/ttyS0\n"
-		"	Execute special \'Hello World\' command (pipe-passed binary parameter):\n"
-		"		echo -n -e '\\x4f\\x4b\\x21' | %s -x 0000:&3 /dev/ttyS0\n",
-		name,
+		"	Execute special \'0x0000\' command with extended 10s timeout:\n"
+		"		%s -x 0000:4F4B21+10 /dev/ttyS0\n",
 		name,
 		name,
 		name,
